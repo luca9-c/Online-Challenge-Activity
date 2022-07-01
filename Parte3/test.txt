@@ -1,0 +1,152 @@
+Test da effettuare per verificare il funzionamento del progetto 
+
+1. Tutte le insert 
+
+	funzionano tutte, per cui non bisogna apportare modifiche relative alle specifiche dei vincoli di integrita' 
+
+2. Provare query e viste e vedere se si ottiene il risultato atteso (confrontandolo con l'altro progetto) 
+
+	query 1
+		progetto def: 834 tuple 
+		progetto boz: 834 tuple 
+		OK! 
+		
+	query 2 riprovata con gioco = 6
+		progetto def: 8071, 12
+		progetto boz: 8071, 12
+		OK MA RIVEDERE I PIANI DI ESECUZIONE
+		
+	query 3
+		progetto def: 400 tuple
+		progetto boz: 402 tuple
+		leggera differenza ma OK
+		
+	query 4 
+		progetto def: 1 2 4 5
+		progetto boz: 1 2 4 5
+		OK!
+		
+	query 5: 
+		progetto def: 3
+		progetto boz: 6
+		OK! (tenendo conto della modifica che e' stata fatta)
+		
+	query 6:
+		progetto def: 4849 tuple 
+		progetto boz: 4998 tuple 
+		non identico ma considerata la modifica alla durata_max di alcune sfide direi OK
+		
+	vista:
+		ordina in modo diverso ma ok
+		
+	query 4 ver tuning:
+		stessi di query 4
+		
+	vista mat:
+		ok tenendo conto del (non) aggiornamento
+		
+3. Provare la funzione di restituzione delle informazioni e vedere se si ottiene lo stesso risultato 
+	progetto def: 1084
+	progetto boz: 1084
+	OK!
+
+4. Provare il trigger e vedere se si ottiene lo stesso risultato 
+	progetto def: vieta insert
+	progetto boz: vieta insert
+	OK!
+
+5. Verificare i piani di esecuzione e vedere se restituiscono un risultato pari o simile a quelli gia scritti (ma eventualmente modificare)
+	piano 1: OK
+	piano 2: cambia leggermente l'output, vedere cio che impostato sotto 
+	piano 3: piccoli cambiamenti ma va corretto, vedere sotto
+	
+6. Fare la stessa cosa di sopra ma rimuovendo gli indici
+
+Se tutti i test sono OK
+
+- inserire per ogni tabella il numero delle tuple con una count 
+
+- inserire per ogni tabella il numero di pagine occupato su disco (serve un'istruzione da reperire)
+
+
+
+------
+Index Scan using index_gioco2 on gioco  (cost=0.29..139.27 rows=833 width=5) (actual time=0.040..1.092 rows=834 loops=1)
+  Index Cond: (dadi_richiesti = 2)
+    Filter: (max_squadre = 4)
+	  Rows Removed by Filter: 1665
+	  Planning time: 0.252 ms
+	  Execution time: 1.174 ms
+
+
+
+
+Bitmap Heap Scan on sfida  (cost=8.60..12.63 rows=1 width=5) (actual time=0.045..0.046 rows=2 loops=1)
+  Recheck Cond: (((gioco = '6'::numeric) AND (data >= '2021-01-01'::date) AND (data <= '2021-01-31'::date) AND (durata_max > 120)) OR ((gioco = '6'::numeric) AND (data >= '2021-03-01'::date) AND (data <= '2021-03-31'::date) AND (durata_max = 30)))
+    Heap Blocks: exact=1
+	  ->  BitmapOr  (cost=8.60..8.60 rows=1 width=0) (actual time=0.034..0.034 rows=0 loops=1)
+	          ->  Bitmap Index Scan on index_sfida1  (cost=0.00..4.30 rows=1 width=0) (actual time=0.028..0.028 rows=1 loops=1)
+			                Index Cond: ((gioco = '6'::numeric) AND (data >= '2021-01-01'::date) AND (data <= '2021-01-31'::date) AND (durata_max > 120))
+							        ->  Bitmap Index Scan on index_sfida1  (cost=0.00..4.30 rows=1 width=0) (actual time=0.005..0.005 rows=1 loops=1)
+									              Index Cond: ((gioco = '6'::numeric) AND (data >= '2021-03-01'::date) AND (data <= '2021-03-31'::date) AND (durata_max = 30))
+												  Planning time: 0.399 ms
+												  Execution time: 0.129 ms
+												  
+												  
+												  
+												  
+Merge Join  (cost=270.91..394.49 rows=390 width=10) (actual time=1.139..3.011 rows=400 loops=1)
+  Merge Cond: (gioco.id = sfida.gioco)
+    ->  Index Scan using gioco_pkey on gioco  (cost=0.29..1145.06 rows=4998 width=5) (actual time=0.021..1.172 rows=499 loops=1)
+	        Filter: (dadi_richiesti >= 2)
+			        Rows Removed by Filter: 504
+					  ->  Sort  (cost=270.62..272.58 rows=781 width=10) (actual time=1.108..1.251 rows=781 loops=1)
+					          Sort Key: sfida.gioco
+							          Sort Method: quicksort  Memory: 61kB
+									          ->  Bitmap Heap Scan on sfida  (cost=18.34..233.10 rows=781 width=10) (actual time=0.171..0.704 rows=781 loops=1)
+											                Recheck Cond: (durata_max > 120)
+															              Heap Blocks: exact=201
+																		                ->  Bitmap Index Scan on index_sfida2  (cost=0.00..18.14 rows=781 width=0) (actual time=0.133..0.134 rows=781 loops=1)
+																						                    Index Cond: (durata_max > 120)
+																											Planning time: 0.848 ms
+																											Execution time: 3.173 ms
+																											
+																											
+																							
+------------------------------------------------------
+
+Seq Scan on gioco  (cost=0.00..363.00 rows=833 width=5) (actual time=1.589..3.212 rows=834 loops=1)
+  Filter: ((max_squadre = 4) AND (dadi_richiesti = 2))
+    Rows Removed by Filter: 9166
+	Planning time: 0.176 ms
+	Execution time: 3.283 ms
+
+	
+	
+
+Bitmap Heap Scan on sfida  (cost=239.29..293.07 rows=1 width=5) (actual time=1.658..1.668 rows=2 loops=1)
+  Recheck Cond: (gioco = '6'::numeric)
+    Filter: (((data >= '2021-01-01'::date) AND (data <= '2021-01-31'::date) AND (durata_max > 120)) OR ((data >= '2021-03-01'::date) AND (data <= '2021-03-31'::date) AND (durata_max = 30)))
+	  Rows Removed by Filter: 15
+	    Heap Blocks: exact=1
+		  ->  Bitmap Index Scan on sfida_pkey  (cost=0.00..239.29 rows=17 width=0) (actual time=1.623..1.623 rows=17 loops=1)
+		          Index Cond: (gioco = '6'::numeric)
+				  Planning time: 0.259 ms
+				  Execution time: 1.725 ms
+				  
+				  
+				  
+				  
+Merge Join  (cost=367.81..491.39 rows=390 width=10) (actual time=4.176..6.594 rows=400 loops=1)
+  Merge Cond: (gioco.id = sfida.gioco)
+    ->  Index Scan using gioco_pkey on gioco  (cost=0.29..1145.06 rows=4998 width=5) (actual time=0.032..1.554 rows=499 loops=1)
+	        Filter: (dadi_richiesti >= 2)
+			        Rows Removed by Filter: 504
+					  ->  Sort  (cost=367.52..369.48 rows=781 width=10) (actual time=4.130..4.293 rows=781 loops=1)
+					          Sort Key: sfida.gioco
+							          Sort Method: quicksort  Memory: 61kB
+									          ->  Seq Scan on sfida  (cost=0.00..330.00 rows=781 width=10) (actual time=0.062..3.704 rows=781 loops=1)
+											                Filter: (durata_max > 120)
+															              Rows Removed by Filter: 9219
+																		  Planning time: 0.739 ms
+																		  Execution time: 6.727 ms
